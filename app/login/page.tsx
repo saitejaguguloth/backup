@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, Suspense } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -10,7 +10,7 @@ import AuthInput from "@/components/auth/AuthInput";
 import AuthButton from "@/components/auth/AuthButton";
 import { motion } from "framer-motion";
 
-export default function LoginPage() {
+function LoginForm() {
     const { signInWithGoogle, signInWithGithub, signInWithEmail } = useAuth();
     const router = useRouter();
     const searchParams = useSearchParams();
@@ -158,5 +158,13 @@ export default function LoginPage() {
                 </div>
             </div>
         </AuthLayout>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen bg-black flex items-center justify-center text-white">Loading...</div>}>
+            <LoginForm />
+        </Suspense>
     );
 }
