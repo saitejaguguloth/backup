@@ -2,8 +2,21 @@
 
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function CTA() {
+    const { user } = useAuth();
+    const router = useRouter();
+
+    const handleStart = () => {
+        if (user) {
+            router.push("/studio");
+        } else {
+            router.push("/login?redirect=/studio");
+        }
+    };
+
     return (
         <section className="py-40 px-6 lg:px-12">
             <div className="max-w-6xl mx-auto text-center">
@@ -36,24 +49,24 @@ export default function CTA() {
                         transition={{ duration: 0.8, delay: 0.4 }}
                         className="flex flex-col sm:flex-row items-center justify-center gap-6"
                     >
-                        <Link href="/login">
-                            <motion.button
-                                whileHover={{
-                                    scale: 1.05,
-                                    boxShadow: "0 0 40px rgba(255,255,255,0.4)",
-                                }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-12 py-5 bg-primary text-background rounded-full text-lg font-bold transition-all duration-300 w-full sm:w-auto relative group overflow-hidden"
-                            >
-                                <span className="relative z-10">Get Early Access</span>
-                                <motion.div
-                                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
-                                    initial={{ x: "-100%" }}
-                                    whileHover={{ x: "100%" }}
-                                    transition={{ duration: 0.6 }}
-                                />
-                            </motion.button>
-                        </Link>
+                        <motion.button
+                            onClick={handleStart}
+                            whileHover={{
+                                scale: 1.05,
+                                boxShadow: "0 0 40px rgba(255,255,255,0.4)",
+                            }}
+                            whileTap={{ scale: 0.95 }}
+                            className="px-12 py-5 bg-primary text-background rounded-full text-lg font-bold transition-all duration-300 w-full sm:w-auto relative group overflow-hidden"
+                        >
+                            <span className="relative z-10">Start Creating</span>
+                            <motion.div
+                                className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent"
+                                initial={{ x: "-100%" }}
+                                whileHover={{ x: "100%" }}
+                                transition={{ duration: 0.6 }}
+                            />
+                        </motion.button>
+
 
                         <motion.button
                             whileHover={{ scale: 1.05 }}

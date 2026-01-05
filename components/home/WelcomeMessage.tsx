@@ -7,37 +7,26 @@ interface WelcomeMessageProps {
     userName?: string;
 }
 
-/**
- * WelcomeMessage Component
- * 
- * Dynamic, personalized welcome with time-aware greetings and contextual sub-messages.
- */
 export default function WelcomeMessage({ userName }: WelcomeMessageProps) {
     const { greeting, subGreeting } = usePersonalization(userName);
 
     return (
         <motion.div
-            initial={{ opacity: 0, y: 30, filter: "blur(8px)" }}
-            animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, ease: [0.22, 1, 0.36, 1] }}
-            className="mb-16"
+            className="mb-8"
         >
             <motion.h1
-                className="text-6xl md:text-8xl font-bold tracking-tight mb-6 leading-[0.95]"
-                style={{
-                    maskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                    WebkitMaskImage: "linear-gradient(to bottom, black 60%, transparent 100%)",
-                }}
+                className="text-5xl md:text-7xl font-light tracking-tight mb-4 leading-[1.1]"
             >
-                {greeting}
-                <br />
-                <span className="text-white/40">what now?</span>
+                <span className="text-white">{greeting}</span>
             </motion.h1>
             <motion.p
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ delay: 0.3, duration: 0.6 }}
-                className="text-xl text-white/60"
+                className="text-lg text-white/40 font-light max-w-md"
             >
                 {subGreeting}
             </motion.p>

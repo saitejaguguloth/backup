@@ -1,41 +1,50 @@
 "use client";
 
-import { motion } from "framer-motion";
-import { useState, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useActivity } from "@/hooks/useActivity";
 import { useAuth } from "@/context/AuthContext";
+import { IconSend } from "@/components/icons/Icons";
 
 const placeholders = [
     "Describe what you want to build…",
-    "Turn your idea into reality…",
-    "What should we create today?",
-    "Sketch out your vision in words…",
-    "Build the interface you're imagining…",
+    "A login page with social auth…",
+    "Dashboard with analytics charts…",
+    "E-commerce product grid…",
+    "Settings panel with toggles…",
 ];
 
 export default function IntentInput() {
     const [value, setValue] = useState("");
     const [focused, setFocused] = useState(false);
     const [placeholderIndex, setPlaceholderIndex] = useState(0);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
     const router = useRouter();
     const { user } = useAuth();
     const { trackEvent } = useActivity(user?.uid);
 
-    // Rotate placeholders every 3 seconds
     useEffect(() => {
-        const interval = setInterval(() => {
-            setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
-        }, 3000);
-
-        return () => clearInterval(interval);
-    }, []);
+        if (!focused && value === "") {
+            const interval = setInterval(() => {
+                setPlaceholderIndex((prev) => (prev + 1) % placeholders.length);
+            }, 4000);
+            return () => clearInterval(interval);
+        }
+    }, [focused, value]);
 
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault();
         if (value.trim()) {
             trackEvent('interaction', { type: 'intent_submit', value: value.trim() });
             router.push(`/studio?intent=${encodeURIComponent(value)}`);
+        }
+    };
+
+    const handleKeyDown = (e: React.KeyboardEvent) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSubmit(e);
         }
     };
 
@@ -54,39 +63,65 @@ export default function IntentInput() {
         >
             <motion.div
                 animate={{
-                    scale: focused ? 1.01 : 1,
+                    borderColor: focused ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.08)",
                 }}
                 transition={{ duration: 0.3 }}
-                className="relative"
+                className="relative rounded-xl border bg-white/[0.02] overflow-hidden"
             >
-                <input
-                    type="text"
+                <textarea
+                    ref={inputRef}
                     value={value}
                     onChange={(e) => setValue(e.target.value)}
                     onFocus={handleFocus}
                     onBlur={() => setFocused(false)}
+                    onKeyDown={handleKeyDown}
                     placeholder={placeholders[placeholderIndex]}
-                    className="w-full px-8 py-6 bg-white/5 border border-white/10 rounded-xl text-xl text-white placeholder:text-white/30 focus:outline-none focus:border-white/20 focus:bg-white/[0.07] transition-all"
+                    rows={1}
+                    className="w-full px-6 py-5 bg-transparent text-lg text-white placeholder:text-white/20 focus:outline-none resize-none leading-relaxed"
+                    style={{ minHeight: '64px' }}
                 />
-                <motion.div
-                    className="absolute inset-0 border border-white/40 rounded-xl pointer-events-none"
-                    initial={{ opacity: 0, scale: 1.02 }}
-                    animate={{
-                        opacity: focused ? 1 : 0,
-                        scale: focused ? 1 : 1.02,
-                    }}
-                    transition={{ duration: 0.3 }}
-                />
+
+                <div className="absolute right-4 bottom-4 flex items-center gap-3">
+                    <AnimatePresence>
+                        {value.trim() && (
+                            <motion.button
+                                type="submit"
+                                initial={{ opacity: 0, scale: 0.8 }}
+                                animate={{ opacity: 1, scale: 1 }}
+                                exit={{ opacity: 0, scale: 0.8 }}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="p-2 rounded-lg bg-white text-black hover:bg-white/90 transition-colors"
+                            >
+                                <IconSend size={16} />
+                            </motion.button>
+                        )}
+                    </AnimatePresence>
+                </div>
             </motion.div>
-            <motion.p
-                key={placeholderIndex}
-                initial={{ opacity: 0, y: -10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 10 }}
-                className="text-xs text-white/40 mt-3 ml-1"
-            >
-                Press Enter to start creating {value.length > 0 && `• ${value.length} characters`}
-            </motion.p>
+
+            <div className="flex items-center justify-between mt-3 px-1">
+                <motion.p
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="text-[11px] text-white/30"
+                >
+                    Press Enter to start
+                </motion.p>
+                <AnimatePresence mode="wait">
+                    {value.length > 0 && (
+                        <motion.span
+                            key="count"
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            className="text-[11px] text-white/30 tabular-nums"
+                        >
+                            {value.length}
+                        </motion.span>
+                    )}
+                </AnimatePresence>
+            </div>
         </motion.form>
     );
 }

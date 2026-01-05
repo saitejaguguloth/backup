@@ -41,7 +41,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signInWithGoogle = async () => {
         try {
             await signInWithPopup(auth, googleProvider);
-            router.push("/home");
         } catch (error) {
             throw error;
         }
@@ -50,7 +49,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signInWithGithub = async () => {
         try {
             await signInWithPopup(auth, githubProvider);
-            router.push("/home");
         } catch (error) {
             throw error;
         }
@@ -59,7 +57,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signInWithEmail = async (email: string, password: string) => {
         try {
             await signInWithEmailAndPassword(auth, email, password);
-            router.push("/home");
         } catch (error) {
             throw error;
         }
@@ -68,7 +65,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const signUpWithEmail = async (email: string, password: string) => {
         try {
             await createUserWithEmailAndPassword(auth, email, password);
-            router.push("/home");
         } catch (error) {
             throw error;
         }

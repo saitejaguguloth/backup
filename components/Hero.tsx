@@ -3,13 +3,25 @@
 import { motion, useScroll, useTransform } from "framer-motion";
 import { useRef } from "react";
 import Link from "next/link";
+import { useAuth } from "@/context/AuthContext";
+import { useRouter } from "next/navigation";
 
 export default function Hero() {
+    const { user } = useAuth();
+    const router = useRouter();
     const ref = useRef<HTMLElement>(null);
     const { scrollYProgress } = useScroll({
         target: ref,
         offset: ["start start", "end start"],
     });
+
+    const handleStart = () => {
+        if (user) {
+            router.push("/studio");
+        } else {
+            router.push("/login?redirect=/studio");
+        }
+    };
 
     const y = useTransform(scrollYProgress, [0, 1], ["0%", "50%"]);
     const opacity = useTransform(scrollYProgress, [0, 0.5], [1, 0]);
@@ -78,15 +90,14 @@ export default function Hero() {
                         variants={itemVariants}
                         className="flex flex-col sm:flex-row items-center justify-center gap-4"
                     >
-                        <Link href="/login">
-                            <motion.button
-                                whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(255,255,255,0.3)" }}
-                                whileTap={{ scale: 0.95 }}
-                                className="px-8 py-4 bg-primary text-background rounded-full text-base font-semibold transition-all duration-300 w-full sm:w-auto"
-                            >
-                                Start Building
-                            </motion.button>
-                        </Link>
+                        <motion.button
+                            onClick={handleStart}
+                            whileHover={{ scale: 1.05, boxShadow: "0 0 30px rgba(255,255,255,0.3)" }}
+                            whileTap={{ scale: 0.95 }}
+                            className="px-8 py-4 bg-primary text-background rounded-full text-base font-semibold transition-all duration-300 w-full sm:w-auto"
+                        >
+                            Start Creating
+                        </motion.button>
 
                         <motion.button
                             whileHover={{ scale: 1.05 }}

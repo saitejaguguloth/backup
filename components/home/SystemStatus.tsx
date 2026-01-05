@@ -5,17 +5,23 @@ import { useActivity } from "@/hooks/useActivity";
 import { useAuth } from "@/context/AuthContext";
 import { useState, useEffect } from "react";
 
+type SystemState = "ready" | "active" | "idle" | "checking";
+
+interface SystemItem {
+    name: string;
+    status: string;
+    state: SystemState;
+}
+
 export default function SystemStatus() {
     const { user } = useAuth();
-    const { sessionDuration, trackEvent } = useActivity(user?.uid);
+    const { sessionDuration } = useActivity(user?.uid);
     const [apiLatency, setApiLatency] = useState<number>(0);
 
-    // Simulate API health check
     useEffect(() => {
         const checkAPI = async () => {
             const start = Date.now();
             try {
-                // Simulated health check - in production, this would be a real API call
                 await new Promise(resolve => setTimeout(resolve, Math.random() * 100 + 50));
                 setApiLatency(Date.now() - start);
             } catch {
@@ -24,53 +30,81 @@ export default function SystemStatus() {
         };
 
         checkAPI();
-        const interval = setInterval(checkAPI, 10000); // Check every 10s
-
+        const interval = setInterval(checkAPI, 10000);
         return () => clearInterval(interval);
     }, []);
 
-    const systems = [
+    const getEngineState = (): SystemState => {
+        if (apiLatency === 0) return "checking";
+        if (apiLatency > 0 && apiLatency < 200) return "ready";
+        return "idle";
+    };
+
+    const systems: SystemItem[] = [
         {
-            name: "AI engine",
-            status: apiLatency > 0 && apiLatency < 200 ? "Ready" : apiLatency >= 200 ? "Slow" : "Checking...",
-            color: apiLatency > 0 && apiLatency < 200 ? "bg-green-500" : apiLatency >= 200 ? "bg-yellow-500" : "bg-blue-500"
+            name: "AI Engine",
+            status: apiLatency > 0 && apiLatency < 200 ? "Ready" : apiLatency >= 200 ? "Slow" : "...",
+            state: getEngineState(),
         },
         {
-            name: "Session",
-            status: `${Math.floor(sessionDuration / 60)}m ${sessionDuration % 60}s`,
-            color: "bg-white"
-        },
-        {
-            name: "Vision model",
+            name: "Vision Model",
             status: "Active",
-            color: "bg-green-500"
+            state: "active",
+        },
+        {
+            name: "Export Pipeline",
+            status: "Idle",
+            state: "idle",
         },
     ];
 
+    const getIndicatorColor = (state: SystemState) => {
+        switch (state) {
+            case "ready":
+            case "active":
+                return "bg-white";
+            case "idle":
+                return "bg-white/30";
+            case "checking":
+                return "bg-white/50";
+            default:
+                return "bg-white/30";
+        }
+    };
+
     return (
         <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.8, delay: 0.6, ease: [0.22, 1, 0.36, 1] }}
-            className="flex flex-wrap items-center gap-6 px-6 py-4 bg-white/[0.02] border border-white/10 rounded-xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ duration: 0.8, delay: 0.6 }}
+            className="flex items-center gap-8"
         >
             {systems.map((system, index) => (
-                <div key={system.name} className="flex items-center gap-2">
+                <motion.div
+                    key={system.name}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.7 + index * 0.1 }}
+                    className="flex items-center gap-2"
+                >
                     <motion.div
                         animate={{
-                            opacity: [0.4, 1, 0.4],
+                            opacity: system.state === "active" ? [0.4, 1, 0.4] : 1,
                         }}
                         transition={{
                             duration: 2,
-                            repeat: Infinity,
-                            delay: index * 0.3,
+                            repeat: system.state === "active" ? Infinity : 0,
+                            ease: "easeInOut",
                         }}
-                        className={`w-1.5 h-1.5 ${system.color} rounded-full`}
+                        className={`w-1.5 h-1.5 ${getIndicatorColor(system.state)} rounded-full`}
                     />
-                    <span className="text-xs text-white/60">
-                        {system.name}: <span className="text-white/90">{system.status}</span>
+                    <span className="text-xs text-white/40">
+                        {system.name}
                     </span>
-                </div>
+                    <span className="text-xs text-white/60">
+                        {system.status}
+                    </span>
+                </motion.div>
             ))}
         </motion.div>
     );

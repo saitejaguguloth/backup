@@ -3,6 +3,7 @@
 import { useState, FormEvent } from "react";
 import Link from "next/link";
 import { useAuth } from "@/context/AuthContext";
+import { useRouter, useSearchParams } from "next/navigation";
 import AuthLayout from "@/components/auth/AuthLayout";
 import OAuthButton from "@/components/auth/OAuthButton";
 import AuthInput from "@/components/auth/AuthInput";
@@ -11,17 +12,25 @@ import { motion } from "framer-motion";
 
 export default function SignupPage() {
     const { signInWithGoogle, signInWithGithub, signUpWithEmail } = useAuth();
+    const router = useRouter();
+    const searchParams = useSearchParams();
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
     const [loading, setLoading] = useState(false);
     const [oauthLoading, setOauthLoading] = useState<"google" | "github" | null>(null);
     const [error, setError] = useState("");
 
+    const handleSuccess = () => {
+        const redirect = searchParams.get("redirect") || "/home";
+        router.push(redirect);
+    };
+
     const handleGoogleSignup = async () => {
         try {
             setOauthLoading("google");
             setError("");
             await signInWithGoogle();
+            handleSuccess();
         } catch (err: any) {
             setError(err.message || "Failed to sign up with Google");
         } finally {
@@ -34,6 +43,7 @@ export default function SignupPage() {
             setOauthLoading("github");
             setError("");
             await signInWithGithub();
+            handleSuccess();
         } catch (err: any) {
             setError(err.message || "Failed to sign up with GitHub");
         } finally {
@@ -65,6 +75,7 @@ export default function SignupPage() {
             setLoading(true);
             setError("");
             await signUpWithEmail(email, password);
+            handleSuccess();
         } catch (err: any) {
             if (err.code === "auth/email-already-in-use") {
                 setError("Email already in use");
@@ -161,7 +172,7 @@ export default function SignupPage() {
                     <p className="text-white/40">
                         Already have an account?{" "}
                         <Link
-                            href="/login"
+                            href={`/login?${searchParams.toString()}`}
                             className="text-white hover:text-white/80 transition-colors font-medium"
                         >
                             Sign in
