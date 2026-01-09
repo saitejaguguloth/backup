@@ -8,6 +8,7 @@ import {
     GenerationConfigV2,
     StudioConfig,
 } from "@/lib/gemini";
+import { generateForTechStack, validateTechStack, GeneratedFile } from "@/lib/generator";
 
 // Set max duration to 5 minutes (300 seconds)
 export const maxDuration = 300;
@@ -24,7 +25,11 @@ interface GenerateFromImageRequest {
 }
 
 interface GenerateFromImageResponse {
-    code: string;
+    code: string;           // Keep for backward compatibility
+    files?: GeneratedFile[];
+    previewEntry?: string;
+    framework?: string;
+    previewHtml?: string;
     error?: string;
 }
 
@@ -59,7 +64,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateF
         // Log for debugging
         console.log("Received MIME type:", body.mimeType);
         console.log("Normalized MIME type:", normalizedMimeType);
-        console.log("Allowed MIME types:", ALLOWED_MIME_TYPES);
+        console.log("Tech Stack:", body.generationConfig && 'techStack' in body.generationConfig ? body.generationConfig.techStack : 'not specified');
 
         if (!ALLOWED_MIME_TYPES.includes(normalizedMimeType)) {
             return NextResponse.json({
@@ -78,9 +83,20 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateF
         }
 
         let generatedCode: string;
+        let techStack: string = "html";
 
         if (body.generationConfig) {
             if (isStudioConfig(body.generationConfig)) {
+                // Validate tech stack is selected
+                if (!validateTechStack(body.generationConfig.techStack)) {
+                    return NextResponse.json({
+                        code: "",
+                        error: "Tech stack must be selected before generation"
+                    }, { status: 400 });
+                }
+
+                techStack = body.generationConfig.techStack;
+
                 // Use StudioConfig generation (from restructured Studio)
                 generatedCode = await generateFromStudioConfig(
                     imageData,
@@ -91,6 +107,7 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateF
                 );
             } else if (isConfigV2(body.generationConfig)) {
                 // Use V2 generation (from SuggestionsPanel)
+                techStack = body.generationConfig.framework || "html";
                 generatedCode = await generateFromConfigV2(
                     imageData,
                     normalizedMimeType,
@@ -123,6 +140,39 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateF
             return NextResponse.json({ code: "", error: "Failed to generate UI code" }, { status: 500 });
         }
 
+        // Process through generator router if we have a studio config
+        if (body.generationConfig && isStudioConfig(body.generationConfig)) {
+            try {
+                const generatorConfig = {
+                    techStack: body.generationConfig.techStack,
+                    styling: body.generationConfig.styling,
+                    designSystem: body.generationConfig.designSystem,
+                    colorPalette: body.generationConfig.colorPalette,
+                    interactionLevel: body.generationConfig.interactionLevel,
+                    features: body.generationConfig.features,
+                    pageType: body.generationConfig.pageType,
+                    navType: body.generationConfig.navType,
+                };
+
+                const result = await generateForTechStack(
+                    body.generationConfig.techStack,
+                    generatedCode,
+                    generatorConfig
+                );
+
+                return NextResponse.json({
+                    code: generatedCode,
+                    files: result.files,
+                    previewEntry: result.previewEntry,
+                    framework: result.framework,
+                    previewHtml: result.previewHtml
+                });
+            } catch (err) {
+                console.error("Generator router error:", err);
+                // Fall back to just returning the raw code
+            }
+        }
+
         return NextResponse.json({ code: generatedCode });
     } catch (error) {
         console.error("Generate from image API Error:", error);
@@ -143,3 +193,4 @@ export async function POST(request: NextRequest): Promise<NextResponse<GenerateF
         return NextResponse.json({ code: "", error: "Failed to generate UI" }, { status: 500 });
     }
 }
+

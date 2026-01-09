@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
     IconDesktop,
@@ -11,11 +11,22 @@ import {
     IconCopy,
     IconDownload,
 } from "./StudioIcons";
+import PreviewEngine from "./PreviewEngine";
+
+// File type from generator
+interface GeneratedFile {
+    path: string;
+    content: string;
+    language: string;
+}
 
 interface SandboxedPreviewProps {
     generatedCode: string;
     pages: { id: string; name: string; role: string }[];
     isGenerating: boolean;
+    techStack?: "html" | "react" | "nextjs" | "vue" | "svelte";
+    files?: GeneratedFile[];
+    previewHtml?: string;
 }
 
 type DevicePreset = "desktop" | "tablet" | "mobile";
@@ -166,12 +177,18 @@ export default function SandboxedPreview({
     generatedCode,
     pages,
     isGenerating,
+    techStack = "html",
+    files = [],
+    previewHtml = "",
 }: SandboxedPreviewProps) {
     const [devicePreset, setDevicePreset] = useState<DevicePreset>("desktop");
     const [zoom, setZoom] = useState(100);
     const [isFullscreen, setIsFullscreen] = useState(false);
     const [copied, setCopied] = useState(false);
     const iframeRef = useRef<HTMLIFrameElement>(null);
+
+    // Use PreviewEngine when we have files, previewHtml, or generatedCode
+    const useLivePreview = files.length > 0 || previewHtml || generatedCode;
 
     const getPreviewHtml = useCallback(() => {
         if (!generatedCode) return "";
@@ -222,8 +239,8 @@ export default function SandboxedPreview({
                                 key={device.id}
                                 onClick={() => setDevicePreset(device.id)}
                                 className={`p-2 rounded-lg transition-colors ${devicePreset === device.id
-                                        ? "bg-white/10 text-white"
-                                        : "text-white/40 hover:text-white/60"
+                                    ? "bg-white/10 text-white"
+                                    : "text-white/40 hover:text-white/60"
                                     }`}
                             >
                                 <Icon size={16} />
@@ -284,7 +301,7 @@ export default function SandboxedPreview({
                             className="w-8 h-8 border-2 border-white/20 border-t-white/60 rounded-full"
                         />
                     </div>
-                ) : generatedCode ? (
+                ) : generatedCode || files.length > 0 ? (
                     <motion.div
                         initial={{ opacity: 0 }}
                         animate={{ opacity: 1 }}
@@ -297,14 +314,25 @@ export default function SandboxedPreview({
                             maxWidth: devicePreset === "desktop" ? "100%" : undefined,
                         }}
                     >
-                        {/* CRITICAL: sandbox="allow-scripts" ONLY - no navigation allowed */}
-                        <iframe
-                            ref={iframeRef}
-                            srcDoc={getPreviewHtml()}
-                            className="w-full h-full border-0"
-                            sandbox="allow-scripts"
-                            title="Preview"
-                        />
+                        {useLivePreview ? (
+                            /* PreviewEngine for all stacks */
+                            <PreviewEngine
+                                techStack={techStack}
+                                files={files}
+                                previewHtml={previewHtml}
+                                generatedCode={generatedCode}
+                                isGenerating={isGenerating}
+                            />
+                        ) : (
+                            /* Static iframe for HTML */
+                            <iframe
+                                ref={iframeRef}
+                                srcDoc={getPreviewHtml()}
+                                className="w-full h-full border-0"
+                                sandbox="allow-scripts"
+                                title="Preview"
+                            />
+                        )}
                     </motion.div>
                 ) : (
                     <div className="h-full flex items-center justify-center text-white/20">
@@ -346,12 +374,22 @@ export default function SandboxedPreview({
                             </button>
                         </div>
                         <div className="flex-1">
-                            <iframe
-                                srcDoc={getPreviewHtml()}
-                                className="w-full h-full border-0"
-                                sandbox="allow-scripts"
-                                title="Fullscreen Preview"
-                            />
+                            {useLivePreview ? (
+                                <PreviewEngine
+                                    techStack={techStack}
+                                    files={files}
+                                    previewHtml={previewHtml}
+                                    generatedCode={generatedCode}
+                                    isGenerating={false}
+                                />
+                            ) : (
+                                <iframe
+                                    srcDoc={getPreviewHtml()}
+                                    className="w-full h-full border-0"
+                                    sandbox="allow-scripts"
+                                    title="Fullscreen Preview"
+                                />
+                            )}
                         </div>
                     </motion.div>
                 )}

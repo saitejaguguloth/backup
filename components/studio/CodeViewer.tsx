@@ -4,9 +4,16 @@ import { useState, useMemo } from "react";
 import { motion } from "framer-motion";
 import { IconCopy, IconDownload, IconCheck } from "./StudioIcons";
 
+interface GeneratedFile {
+    path: string;
+    content: string;
+    language: string;
+}
+
 interface CodeViewerProps {
     code: string;
     techStack: "nextjs" | "react" | "html" | "vue" | "svelte";
+    files?: GeneratedFile[];  // Real files from API
 }
 
 interface FileNode {
@@ -146,15 +153,71 @@ function FileTreeItem({
     );
 }
 
-export default function CodeViewer({ code, techStack }: CodeViewerProps) {
+// Convert API files to FileNode tree structure
+function apiFilesToTree(files: GeneratedFile[]): FileNode[] {
+    const root: FileNode[] = [];
+
+    for (const file of files) {
+        const parts = file.path.split('/');
+        let current = root;
+
+        for (let i = 0; i < parts.length; i++) {
+            const part = parts[i];
+            const isFile = i === parts.length - 1;
+
+            if (isFile) {
+                current.push({
+                    name: part,
+                    type: "file",
+                    content: file.content
+                });
+            } else {
+                let folder = current.find(n => n.name === part && n.type === "folder");
+                if (!folder) {
+                    folder = { name: part, type: "folder", children: [] };
+                    current.push(folder);
+                }
+                current = folder.children!;
+            }
+        }
+    }
+
+    return root;
+}
+
+export default function CodeViewer({ code, techStack, files }: CodeViewerProps) {
     const [selectedFile, setSelectedFile] = useState<string | null>(null);
     const [selectedContent, setSelectedContent] = useState<string>("");
     const [copied, setCopied] = useState(false);
 
-    const fileTree = useMemo(() => generateFileTree(code, techStack), [code, techStack]);
+    // Use real files from API if available, otherwise generate mock tree
+    const fileTree = useMemo(() => {
+        if (files && files.length > 0) {
+            return apiFilesToTree(files);
+        }
+        return generateFileTree(code, techStack);
+    }, [code, techStack, files]);
 
     // Auto-select main file on mount
     useMemo(() => {
+        // If we have real files, select the first one that matches the main file pattern
+        if (files && files.length > 0) {
+            const mainFile = files.find(f =>
+                f.path.endsWith('page.tsx') ||
+                f.path.endsWith('App.tsx') ||
+                f.path.endsWith('App.vue') ||
+                f.path.endsWith('+page.svelte') ||
+                f.path === 'index.html'
+            );
+            if (mainFile) {
+                const fileName = mainFile.path.split('/').pop() || mainFile.path;
+                setSelectedFile(fileName);
+                setSelectedContent(mainFile.content);
+                return;
+            }
+        }
+
+        // Fallback to previous behavior
         if (techStack === "html") {
             setSelectedFile("index.html");
             setSelectedContent(code);

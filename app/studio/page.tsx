@@ -57,11 +57,18 @@ async function analyzeImages(pages: PageImage[]): Promise<LayoutAnalysis> {
     };
 }
 
+// File structure type
+interface GeneratedFile {
+    path: string;
+    content: string;
+    language: string;
+}
+
 // Generate with config
 async function generateWithConfig(
     pages: PageImage[],
     config: StudioConfig
-): Promise<{ code: string; error?: string }> {
+): Promise<{ code: string; files?: GeneratedFile[]; previewHtml?: string; framework?: string; error?: string }> {
     const response = await fetch("/api/generate-from-image", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -104,6 +111,8 @@ export default function StudioPage() {
 
     // Output state
     const [generatedCode, setGeneratedCode] = useState("");
+    const [generatedFiles, setGeneratedFiles] = useState<GeneratedFile[]>([]);
+    const [previewHtml, setPreviewHtml] = useState<string>("");
     const [isModifying, setIsModifying] = useState(false);
     const [modificationHistory, setModificationHistory] = useState<ModifyMessage[]>([]);
 
@@ -208,41 +217,119 @@ export default function StudioPage() {
         }
     };
 
-    // Handle plan confirmation and generation
+    // Handle plan confirmation and generation - PROGRESSIVE STREAMING VERSION
     const handleConfirmPlan = async (config: StudioConfig) => {
         setStudioConfig(config);
         setFlowState("generating");
         setGenerationStep("analyzing");
 
-        // Simulate progress steps
-        const steps: GenerationStep[] = ["structure", "styling", "interactions", "polishing"];
-        let stepIdx = 0;
-        const stepInterval = setInterval(() => {
-            if (stepIdx < steps.length) {
-                setGenerationStep(steps[stepIdx]);
-                stepIdx++;
-            }
-        }, 1500);
-
         try {
-            const result = await generateWithConfig(uploadedPages, config);
+            // Use progressive streaming API
+            const response = await fetch("/api/generate-progressive", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    imageBase64: uploadedPages[0]?.dataUrl || "",
+                    mimeType: uploadedPages[0]?.mimeType || "image/png",
+                    config: {
+                        techStack: config.techStack,
+                        colorPalette: config.colorPalette,
+                        designSystem: config.designSystem,
+                        interactionLevel: config.interactionLevel,
+                        features: config.features,
+                        pageType: config.pageType,
+                        navType: config.navType,
+                    }
+                }),
+            });
 
-            if (result.error) {
+            if (!response.ok) {
+                const errorData = await response.json();
                 setFlowState("error");
-                setErrorMessage(result.error);
+                setErrorMessage(errorData.error || "Generation failed");
                 return;
             }
 
-            setGenerationStep("complete");
-            setGeneratedCode(result.code);
-            setFlowState("generated");
-            setLastSaved(new Date());
-            setCenterMode("preview");
-        } catch {
+            // Read streaming response
+            const reader = response.body?.getReader();
+            const decoder = new TextDecoder();
+
+            if (!reader) {
+                setFlowState("error");
+                setErrorMessage("Streaming not supported");
+                return;
+            }
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value);
+                const lines = chunk.split('\n').filter(line => line.startsWith('data: '));
+
+                for (const line of lines) {
+                    const data = line.slice(6); // Remove 'data: ' prefix
+
+                    if (data === '[DONE]') {
+                        setGenerationStep("complete");
+                        setFlowState("generated");
+                        setLastSaved(new Date());
+                        setCenterMode("preview");
+                        continue;
+                    }
+
+                    try {
+                        const stage = JSON.parse(data);
+
+                        // Update step based on stage
+                        if (stage.stage === 'analyzing') {
+                            setGenerationStep("analyzing");
+                        } else if (stage.stage === 'scaffold') {
+                            setGenerationStep("structure");
+                            // Show scaffold preview immediately!
+                            if (stage.previewHtml) {
+                                setPreviewHtml(stage.previewHtml);
+                                setCenterMode("preview"); // Switch to preview early
+                            }
+                            if (stage.code) {
+                                setGeneratedCode(stage.code);
+                            }
+                        } else if (stage.stage === 'styling') {
+                            setGenerationStep("styling");
+                            // Update with styled preview
+                            if (stage.previewHtml) {
+                                setPreviewHtml(stage.previewHtml);
+                            }
+                            if (stage.code) {
+                                setGeneratedCode(stage.code);
+                            }
+                        } else if (stage.stage === 'complete') {
+                            setGenerationStep("complete");
+                            if (stage.files) {
+                                setGeneratedFiles(stage.files);
+                            }
+                            if (stage.previewHtml) {
+                                setPreviewHtml(stage.previewHtml);
+                            }
+                            if (stage.code) {
+                                setGeneratedCode(stage.code);
+                            }
+                            if (stage.error) {
+                                setFlowState("error");
+                                setErrorMessage(stage.error);
+                                return;
+                            }
+                            setFlowState("generated");
+                            setLastSaved(new Date());
+                        }
+                    } catch {
+                        // Ignore parsing errors for partial chunks
+                    }
+                }
+            }
+        } catch (error) {
             setFlowState("error");
-            setErrorMessage("Generation failed. Please try again.");
-        } finally {
-            clearInterval(stepInterval);
+            setErrorMessage(error instanceof Error ? error.message : "Generation failed. Please try again.");
         }
     };
 
@@ -478,11 +565,15 @@ export default function StudioPage() {
                                 generatedCode={generatedCode}
                                 pages={uploadedPages.map(p => ({ id: p.id, name: p.name, role: p.role }))}
                                 isGenerating={flowState === "generating"}
+                                techStack={studioConfig?.techStack || "html"}
+                                files={generatedFiles}
+                                previewHtml={previewHtml}
                             />
                         ) : (
                             <CodeViewer
                                 code={generatedCode}
                                 techStack={studioConfig?.techStack || "html"}
+                                files={generatedFiles}
                             />
                         )}
                     </div>

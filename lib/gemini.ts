@@ -821,7 +821,70 @@ const DESIGN_SYSTEM_COLORS: Record<string, string[]> = {
 };
 
 /**
+ * Get framework-specific output instructions based on techStack
+ */
+function getFrameworkOutputInstructions(techStack: string): string {
+    switch (techStack) {
+        case "html":
+            return `CRITICAL OUTPUT FORMAT - HTML:
+- Output a COMPLETE HTML document starting with <!DOCTYPE html>
+- Include <html>, <head>, and <body> tags
+- Embed ALL CSS in <style> tags in the head
+- Embed ALL JavaScript in <script> tags before </body>
+- Use Tailwind CDN: <script src="https://cdn.tailwindcss.com"></script>
+- The output MUST render directly in a browser without any build step`;
+
+        case "react":
+            return `CRITICAL OUTPUT FORMAT - REACT TSX:
+- Output a React functional component using TypeScript/TSX syntax
+- Start with: export default function App() { return ( ... ); }
+- Use Tailwind CSS classes for all styling
+- Include useState/useEffect hooks if interactivity is needed
+- Use proper JSX syntax (className instead of class, onClick instead of onclick)
+- DO NOT include import statements (they will be added by the build system)
+- DO NOT wrap in HTML document - just the component code
+- Use inline event handlers for interactivity`;
+
+        case "nextjs":
+            return `CRITICAL OUTPUT FORMAT - NEXT.JS APP ROUTER:
+- Output a Next.js page component using TypeScript/TSX syntax
+- If using hooks or event handlers, start with: "use client";
+- Then: export default function Page() { return ( ... ); }
+- Use Tailwind CSS classes for all styling
+- Use proper JSX syntax (className instead of class)
+- For images, use standard img tags (not Next.js Image component)
+- For links, use standard anchor tags
+- DO NOT include import statements
+- DO NOT wrap in HTML document - just the component code`;
+
+        case "vue":
+            return `CRITICAL OUTPUT FORMAT - VUE 3 SFC:
+- Output a Vue 3 Single File Component format
+- Structure as: <script setup lang="ts">...</script> <template>...</template> <style scoped>...</style>
+- Use Composition API with <script setup>
+- Use Tailwind CSS classes for styling
+- Include reactive state with ref() or reactive() if needed
+- Use @click instead of onclick, :class for dynamic classes
+- The <template> section contains the HTML markup`;
+
+        case "svelte":
+            return `CRITICAL OUTPUT FORMAT - SVELTE:
+- Output a Svelte component format
+- Structure as: <script lang="ts">...</script> (HTML markup) <style>...</style>
+- Use Tailwind CSS classes for styling
+- Include reactive state with let declarations
+- Use on:click instead of onclick
+- Use {#if} and {#each} for conditionals and loops
+- Use $ prefixed variables for reactive declarations`;
+
+        default:
+            return `OUTPUT FORMAT: Complete HTML document with Tailwind CSS`;
+    }
+}
+
+/**
  * Build prompt from StudioConfig (new restructured format)
+ * Now generates framework-specific code based on techStack
  */
 function buildPromptFromStudioConfig(config: StudioConfig, pages: PageInfo[]): string {
     const rules: string[] = [];
@@ -829,17 +892,10 @@ function buildPromptFromStudioConfig(config: StudioConfig, pages: PageInfo[]): s
     // Get colors from design system or palette
     const colors = config.colorPalette?.colors || DESIGN_SYSTEM_COLORS[config.designSystem] || DESIGN_SYSTEM_COLORS.minimal;
 
-    // ALWAYS output HTML for preview
-    rules.push(`You are an expert UI developer. Convert this sketch into a COMPLETE, STANDALONE HTML document.
+    // Framework-specific output instructions (THE KEY CHANGE)
+    rules.push(`You are an expert UI developer. Convert this sketch into production-ready code.
 
-CRITICAL OUTPUT FORMAT:
-- Output a COMPLETE HTML document starting with <!DOCTYPE html>
-- Include <html>, <head>, and <body> tags
-- Embed ALL CSS in <style> tags in the head
-- Embed ALL JavaScript in <script> tags before </body>
-- Use Tailwind CDN: <script src="https://cdn.tailwindcss.com"></script>
-- DO NOT output React, JSX, Vue, Svelte, or any framework-specific code
-- The output MUST render directly in a browser without any build step`);
+${getFrameworkOutputInstructions(config.techStack)}`);
 
     // Color Palette
     if (config.colorPalette?.id === "bw") {
@@ -883,7 +939,7 @@ Background: ${colors[4]}
 
     // Interactions
     if (config.interactionLevel === "static") {
-        rules.push(`INTERACTIONS: Static only. No hover effects, no animations, no JavaScript.`);
+        rules.push(`INTERACTIONS: Static only. No hover effects, no animations, no JavaScript/reactivity.`);
     } else if (config.interactionLevel === "micro") {
         rules.push(`
 INTERACTIONS: Micro-interactions REQUIRED
@@ -915,7 +971,7 @@ INTERACTIONS: Full interactive prototype
         rules.push(`FEATURE: Working modal dialogs that open/close`);
     }
     if (config.features.includes("scrollAnimations")) {
-        rules.push(`FEATURE: Elements fade in on scroll using IntersectionObserver`);
+        rules.push(`FEATURE: Elements fade in on scroll`);
     }
     if (config.features.includes("darkMode")) {
         rules.push(`FEATURE: Working dark/light mode toggle`);
@@ -926,22 +982,25 @@ INTERACTIONS: Full interactive prototype
         const pageNames = pages.map(p => p.name.toLowerCase().replace(/\s+/g, '-'));
         rules.push(`
 MULTI-PAGE: ${pages.length} pages: ${pageNames.join(', ')}
-- Use data-navigate="pagename" on links/buttons
-- Include virtual router script
+- Include navigation between pages
 - NO external navigation`);
     }
 
-    // Final output rules
+    // Final output rules - framework-specific
+    const frameworkSpecificRules = config.techStack === "html"
+        ? `- Output ONLY a complete HTML document (<!DOCTYPE html>...</html>)
+- ALL buttons must work (use onclick handlers)`
+        : `- Output ONLY the component code (no HTML document wrapper)
+- Use appropriate event handlers for the framework`;
+
     rules.push(`
 FINAL OUTPUT RULES:
-- Output ONLY a complete HTML document (<!DOCTYPE html>...</html>)
-- NEVER output React/JSX/Vue/Svelte - ONLY plain HTML
+${frameworkSpecificRules}
 - NO emojis
 - NO purple/violet colors
 - Monochrome SVG icons only (inline SVG)
-- ALL buttons must work (use onclick handlers)
 - NO markdown code fences
-- NO explanations - ONLY the HTML code`);
+- NO explanations - ONLY the code`);
 
     return rules.join('\n\n');
 }
